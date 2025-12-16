@@ -16,7 +16,16 @@ https://github.com/user-attachments/assets/5f599ad0-0922-414b-a8ab-e789da068efa
 
 
 
-## Code Comming Soon
+## 📋 TODO
+
+- [ ] **This Week**
+  - [ ] Release inference code
+  - [ ] Release model weights
+
+- [ ] **By End of December**
+  - [ ] Release training code
+  - [ ] Release data preprocessing code
+  - [ ] Release user-friendly interface (e.g., Gradio)
 
 
 
