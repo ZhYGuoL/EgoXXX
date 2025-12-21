@@ -56,7 +56,7 @@ pip install -r requirements.txt
 
 ## 📥 Model Weights Download
 
-### Wan2.1-I2V-14B Pretrained Model
+### 💾 Wan2.1-I2V-14B Pretrained Model
 
 Download the [Wan2.1-I2V-14B](https://huggingface.co/Wan-AI/Wan2.1-I2V-14B-480P-Diffusers) model and save it to the `checkpoints/pretrained_model/` folder.
 
@@ -65,7 +65,7 @@ pip install huggingface_hub
 python -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='Wan-AI/Wan2.1-I2V-14B-480P-Diffusers', local_dir='./checkpoints/pretrained_model/Wan2.1-I2V-14B-480P-Diffusers')"
 ```
 
-### 📥 EgoX Model Weights Download
+### 💾 EgoX Model Weights Download
 
 Download the trained EgoX LoRA weights using one of the following methods:
 
