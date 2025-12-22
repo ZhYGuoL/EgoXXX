@@ -160,10 +160,10 @@ your_dataset/              # Your custom dataset folder
         └──  exo.mp4
 ```
 
-Then, by using `make_meta_init.py`, you can create a meta.json file with the following command:
+Then, by using `meta_init.py`, you can create a meta.json file with the following command:
 
 ```
-python make_meta_init.py --folder_path ./your_dataset --output_json ./your_dataset/meta.json --overwrite
+python meta_init.py --folder_path ./your_dataset --output_json ./your_dataset/meta.json --overwrite
 ```
 
 ```
