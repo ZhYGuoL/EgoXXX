@@ -18,8 +18,8 @@ https://github.com/user-attachments/assets/5f599ad0-0922-414b-a8ab-e789da068efa
 ## 📋 TODO
 
 ### 🔹 This Week
-- [ ] Release **inference code**
-- [ ] Release **model weights**
+- [x] Release **inference code**
+- [x] Release **model weights**
 - [ ] Release **data preprocessing code (for inference)**
 
 ---
