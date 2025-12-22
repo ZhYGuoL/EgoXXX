@@ -20,7 +20,7 @@ https://github.com/user-attachments/assets/5f599ad0-0922-414b-a8ab-e789da068efa
 ### 🔹 This Week
 - [x] Release **inference code**
 - [x] Release **model weights**
-- [ ] Release **data preprocessing code (for inference)**
+- [x] Release **data preprocessing code (for inference)**
 
 ---
 
@@ -147,6 +147,10 @@ JSON file containing exocentric video path, egocentric prior video path, prompt,
 </details>
 
 To prepare your own dataset, follow the instruction from [here](https://github.com/kdh8156/EgoX-EgoPriorRenderer).
+
+### Constraints
+Since EgoX is trained on the Ego-Exo4D dataset where exocentric view camera poses are fixed, you must provide exocentric videos with fixed camera poses as input during inference.
+Also, the model is trained on 448x448 and 448x784 resolutions. Please preprocess your videos to these resolutions.
 
 <details>
 <summary><b>Custom dataset init structure</b></summary>
