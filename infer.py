@@ -25,25 +25,28 @@ def main(args):
     _set_seed(args.seed)
 
     prompt_list = []
-    with open(args.prompt, 'r') as f:
-        for line in f.readlines():
-            prompt_list.append(line.strip())
+    if args.prompt is not None and os.path.exists(args.prompt):
+        with open(args.prompt, 'r') as f:
+            for line in f.readlines():
+                prompt_list.append(line.strip())
 
     exo_video_list = []
-    with open(args.exo_video_path, 'r') as f:
-        for line in f.readlines():
-            exo_video_list.append(line.strip())
+    if args.exo_video_path is not None and os.path.exists(args.exo_video_path):
+        with open(args.exo_video_path, 'r') as f:
+            for line in f.readlines():
+                exo_video_list.append(line.strip())
 
     ego_prior_video_list = []
-    with open(args.ego_prior_video_path, 'r') as f:
-        for line in f.readlines():
-            ego_prior_video_list.append(line.strip())
+    if args.ego_prior_video_path is not None and os.path.exists(args.ego_prior_video_path):
+        with open(args.ego_prior_video_path, 'r') as f:
+            for line in f.readlines():
+                ego_prior_video_list.append(line.strip())
     
-    assert len(prompt_list) == len(exo_video_list) == len(ego_prior_video_list)
 
     meta_data_file = args.meta_data_file
     depth_root = args.depth_root
     meta_data = load_from_json_file(meta_data_file)
+    meta_data = meta_data['test_datasets']
 
     prompts = prompt_list
     exo_videos = exo_video_list
@@ -55,20 +58,19 @@ def main(args):
     ego_intrinsics = []
     take_names = []
 
-    meta_data = meta_data['test_datasets']
-
-    i = 0
-    for ego_filename, meta in enumerate(meta_data):
-        if i >= len(exo_videos):
-            break
-        take_name = exo_videos[i].split('/')[-2]
-        i += 1
+    for i, meta in enumerate(meta_data):
+        exo_videos.append(meta['exo_path'])
+        ego_prior_videos.append(meta['ego_prior_path'])
+        prompts.append(meta['prompt'])
+        take_name = exo_videos[-1].split('/')[-2]
         depth_map_paths.append(Path(os.path.join(depth_root, take_name)))
         camera_extrinsics.append(meta['camera_extrinsics'])
         camera_intrinsics.append(meta['camera_intrinsics'])
         ego_extrinsics.append(meta['ego_extrinsics'])
         ego_intrinsics.append(meta['ego_intrinsics'])
         take_names.append(take_name)
+    
+    assert len(prompts) == len(exo_videos) == len(ego_prior_videos)
     
     import shutil
     from transformers import CLIPVisionModel
@@ -282,9 +284,9 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate a video from a text prompt using Wan")
-    parser.add_argument("--prompt", type=str, required=True, help="prompt path list.txt")
-    parser.add_argument("--exo_video_path", type=str, required=True, help="exo video path list.txt")
-    parser.add_argument("--ego_prior_video_path", type=str, required=True, help="ego prior video path list.txt")
+    parser.add_argument("--prompt", type=str, help="prompt path list.txt", default=None)
+    parser.add_argument("--exo_video_path", type=str, help="exo video path list.txt", default=None)
+    parser.add_argument("--ego_prior_video_path", type=str, help="ego prior video path list.txt", default=None)
     parser.add_argument("--idx", type=int, default=-1)
     parser.add_argument("--model_path", type=str, default=None, help="The path of the SFT weights to be used")
     parser.add_argument("--out", type=str, default="/outputs", help="The path save generated video")
