@@ -219,19 +219,20 @@ Then, modify `scripts/infer_itw.sh` (or create a new script) to point to your da
 
 ```bash
 python3 infer.py \
-    --prompt ./example/your_dataset/caption.txt \
-    --exo_video_path ./example/your_dataset/exo_gt_path.txt \
-    --ego_prior_video_path ./example/your_dataset/ego_prior_path.txt \
-    --meta_data_file ./example/your_dataset/camera_params.json \
-    --depth_root ./example/your_dataset/depth_maps/ \
+    --meta_data_file ./example/your_dataset/meta.json \
     --model_path ./checkpoints/pretrained_model/Wan2.1-I2V-14B-480P-Diffusers \
     --lora_path ./checkpoints/EgoX/pytorch_lora_weights.safetensors \
     --lora_rank 256 \
     --out ./results \
     --seed 42 \
     --use_GGA \
-    --cos_sim_scaling_factor 3.0
+    --cos_sim_scaling_factor 3.0 \
+    --in_the_wild
 ```
+
+## 🌟 Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=DAVIAN-Robotics/EgoX&type=date&legend=top-left)](https://www.star-history.com/#DAVIAN-Robotics/EgoX&type=date&legend=top-left)
 
 ## 🙏 Acknowledgements
 
