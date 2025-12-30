@@ -156,7 +156,7 @@ JSON file containing exocentric video path, egocentric prior video path, prompt,
 
 </details>
 
-To prepare your own dataset, follow the instruction from [here](https://github.com/kdh8156/EgoX-EgoPriorRenderer).
+To prepare your own dataset, follow the instruction from [here](https://github.com/kdh8156/EgoX-EgoPriorRenderer/tree/main).
 
 ### Constraints
 Since EgoX is trained on the Ego-Exo4D dataset where exocentric view camera poses are fixed, you must provide exocentric videos with fixed camera poses as input during inference.
@@ -196,7 +196,7 @@ python caption.py --json_file ./your_dataset/meta.json --output_json ./your_data
 
 Make sure that your api key is properly set in `caption.py`.
 
-Finally, follow the instruction from [here](https://github.com/kdh8156/EgoX-EgoPriorRenderer).
+Finally, follow the instruction from [here](https://github.com/kdh8156/EgoX-EgoPriorRenderer/tree/main).
 Then you can get depth maps, camera intrinsic, ego camera extrinsics for each video.
 
 ```
