@@ -3,7 +3,6 @@ import cv2
 import numpy as np
 import os
 from pathlib import Path
-import tempfile
 import shutil
 
 # Output directory for processed videos
@@ -19,7 +18,7 @@ REQUIRED_WIDTH = 784
 def get_video_info(video_path):
     """Get video information."""
     if video_path is None:
-        return None, None, None, None
+        return None, None, None, None, None
 
     cap = cv2.VideoCapture(video_path)
     fps = cap.get(cv2.CAP_PROP_FPS)
@@ -35,9 +34,22 @@ def get_video_info(video_path):
 def update_video_info(video):
     """Update video info display when video is uploaded."""
     if video is None:
-        return "No video uploaded", gr.update(maximum=100, value=0), gr.update(maximum=100, value=100), None
+        return (
+            "No video uploaded",
+            gr.update(maximum=100, value=0),
+            gr.update(maximum=100, value=100),
+            gr.update(maximum=0, value=0),
+            gr.update(maximum=0, value=0),
+            None,
+            0,
+            0
+        )
 
     fps, total_frames, width, height, duration = get_video_info(video)
+
+    # Calculate max crop positions
+    max_crop_x = max(0, width - REQUIRED_WIDTH)
+    max_crop_y = max(0, height - REQUIRED_HEIGHT)
 
     info_text = f"""**Video Information:**
 - Resolution: {width} x {height}
@@ -46,21 +58,29 @@ def update_video_info(video):
 - Duration: {duration:.2f}s
 
 **EgoX Requirements:**
-- Resolution: {REQUIRED_WIDTH} x {REQUIRED_HEIGHT}
+- Crop Size: {REQUIRED_WIDTH} x {REQUIRED_HEIGHT}
 - Frames: {REQUIRED_FRAMES}
 - Fixed camera pose (user responsibility)
+
+**Crop Range:**
+- Horizontal: 0 to {max_crop_x} px
+- Vertical: 0 to {max_crop_y} px
 """
 
     return (
         info_text,
         gr.update(maximum=total_frames - 1, value=0),
         gr.update(maximum=total_frames - 1, value=min(REQUIRED_FRAMES - 1, total_frames - 1)),
-        video
+        gr.update(maximum=max_crop_x, value=max_crop_x // 2),  # Center horizontally
+        gr.update(maximum=max_crop_y, value=max_crop_y // 2),  # Center vertically
+        video,
+        width,
+        height
     )
 
 
-def preview_frame(video, frame_num):
-    """Preview a specific frame from the video."""
+def preview_frame_with_crop(video, frame_num, crop_x, crop_y):
+    """Preview a specific frame with crop overlay."""
     if video is None:
         return None
 
@@ -69,13 +89,75 @@ def preview_frame(video, frame_num):
     ret, frame = cap.read()
     cap.release()
 
-    if ret:
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        return frame
-    return None
+    if not ret:
+        return None
+
+    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    h, w = frame.shape[:2]
+
+    # Ensure crop coordinates are valid
+    crop_x = int(min(crop_x, max(0, w - REQUIRED_WIDTH)))
+    crop_y = int(min(crop_y, max(0, h - REQUIRED_HEIGHT)))
+
+    # Draw crop rectangle overlay
+    overlay = frame.copy()
+
+    # Darken areas outside crop region
+    mask = np.zeros_like(frame)
+    mask[crop_y:crop_y + REQUIRED_HEIGHT, crop_x:crop_x + REQUIRED_WIDTH] = 1
+    darkened = (frame * 0.4).astype(np.uint8)
+    frame_with_overlay = np.where(mask == 1, frame, darkened)
+
+    # Draw border around crop area
+    cv2.rectangle(
+        frame_with_overlay,
+        (crop_x, crop_y),
+        (crop_x + REQUIRED_WIDTH, crop_y + REQUIRED_HEIGHT),
+        (0, 255, 0),
+        3
+    )
+
+    # Add dimension text
+    cv2.putText(
+        frame_with_overlay,
+        f"Crop: {REQUIRED_WIDTH}x{REQUIRED_HEIGHT}",
+        (crop_x + 10, crop_y + 30),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.8,
+        (0, 255, 0),
+        2
+    )
+
+    return frame_with_overlay
 
 
-def calculate_output_info(video, start_frame, end_frame, target_width, target_height):
+def preview_cropped_frame(video, frame_num, crop_x, crop_y):
+    """Preview the actual cropped result."""
+    if video is None:
+        return None
+
+    cap = cv2.VideoCapture(video)
+    cap.set(cv2.CAP_PROP_POS_FRAMES, frame_num)
+    ret, frame = cap.read()
+    cap.release()
+
+    if not ret:
+        return None
+
+    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    h, w = frame.shape[:2]
+
+    # Ensure crop coordinates are valid
+    crop_x = int(min(crop_x, max(0, w - REQUIRED_WIDTH)))
+    crop_y = int(min(crop_y, max(0, h - REQUIRED_HEIGHT)))
+
+    # Crop the frame
+    cropped = frame[crop_y:crop_y + REQUIRED_HEIGHT, crop_x:crop_x + REQUIRED_WIDTH]
+
+    return cropped
+
+
+def calculate_output_info(video, start_frame, end_frame, crop_x, crop_y):
     """Calculate and display output video information."""
     if video is None:
         return "Upload a video first"
@@ -90,23 +172,18 @@ def calculate_output_info(video, start_frame, end_frame, target_width, target_he
     else:
         status = f"Perfect! Selected exactly {REQUIRED_FRAMES} frames."
 
-    resolution_status = ""
-    if target_width != REQUIRED_WIDTH or target_height != REQUIRED_HEIGHT:
-        resolution_status = f"\nNote: Resolution {target_width}x{target_height} differs from recommended {REQUIRED_WIDTH}x{REQUIRED_HEIGHT}"
-    else:
-        resolution_status = f"\nResolution matches EgoX requirements!"
-
     return f"""**Output Preview:**
 - Frames: {start_frame} to {end_frame} ({num_frames} frames)
-- Output Resolution: {target_width} x {target_height}
+- Crop Position: ({int(crop_x)}, {int(crop_y)})
+- Output Resolution: {REQUIRED_WIDTH} x {REQUIRED_HEIGHT}
 - Final Frames: {REQUIRED_FRAMES}
 
-{status}{resolution_status}
+{status}
 """
 
 
-def process_video(video, start_frame, end_frame, target_width, target_height, output_name):
-    """Process the video: clip, resize, and save."""
+def process_video(video, start_frame, end_frame, crop_x, crop_y, output_name):
+    """Process the video: clip, crop, and save."""
     if video is None:
         return "Please upload a video first", None
 
@@ -119,16 +196,22 @@ def process_video(video, start_frame, end_frame, target_width, target_height, ou
     try:
         cap = cv2.VideoCapture(video)
         fps = cap.get(cv2.CAP_PROP_FPS)
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
-        # Read selected frames
+        # Ensure crop coordinates are valid
+        crop_x = int(min(crop_x, max(0, width - REQUIRED_WIDTH)))
+        crop_y = int(min(crop_y, max(0, height - REQUIRED_HEIGHT)))
+
+        # Read and crop selected frames
         frames = []
         for frame_idx in range(int(start_frame), int(end_frame) + 1):
             cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
             ret, frame = cap.read()
             if ret:
-                # Resize frame
-                frame = cv2.resize(frame, (int(target_width), int(target_height)), interpolation=cv2.INTER_LANCZOS4)
-                frames.append(frame)
+                # Crop frame
+                cropped = frame[crop_y:crop_y + REQUIRED_HEIGHT, crop_x:crop_x + REQUIRED_WIDTH]
+                frames.append(cropped)
         cap.release()
 
         if len(frames) == 0:
@@ -152,7 +235,7 @@ def process_video(video, start_frame, end_frame, target_width, target_height, ou
 
         # Write video
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        out = cv2.VideoWriter(str(output_path), fourcc, fps, (int(target_width), int(target_height)))
+        out = cv2.VideoWriter(str(output_path), fourcc, fps, (REQUIRED_WIDTH, REQUIRED_HEIGHT))
 
         for frame in frames:
             out.write(frame)
@@ -162,9 +245,9 @@ def process_video(video, start_frame, end_frame, target_width, target_height, ou
         temp_path = video_dir / "exo_temp.mp4"
         shutil.move(str(output_path), str(temp_path))
 
-        os.system(f'ffmpeg -y -i "{temp_path}" -c:v libx264 -preset fast -crf 18 "{output_path}" -loglevel quiet')
+        ffmpeg_result = os.system(f'ffmpeg -y -i "{temp_path}" -c:v libx264 -preset fast -crf 18 "{output_path}" -loglevel quiet')
 
-        if output_path.exists():
+        if output_path.exists() and ffmpeg_result == 0:
             temp_path.unlink(missing_ok=True)
         else:
             # Fallback if ffmpeg fails
@@ -173,6 +256,11 @@ def process_video(video, start_frame, end_frame, target_width, target_height, ou
         success_msg = f"""**Video Processed Successfully!**
 
 Saved to: `{output_path}`
+
+**Video Details:**
+- Resolution: {REQUIRED_WIDTH} x {REQUIRED_HEIGHT}
+- Frames: {REQUIRED_FRAMES}
+- Crop Position: ({crop_x}, {crop_y})
 
 **Next Steps:**
 1. Use EgoX-EgoPriorRenderer to generate:
@@ -210,8 +298,12 @@ def create_ui():
 
         **Requirements:**
         - Fixed camera pose (no camera movement)
-        - Output: 49 frames at 784x448 resolution
+        - Output: 49 frames at 784x448 resolution (cropped, not resized)
         """)
+
+        # Hidden state for video dimensions
+        video_width = gr.State(0)
+        video_height = gr.State(0)
 
         with gr.Row():
             with gr.Column(scale=1):
@@ -231,15 +323,17 @@ def create_ui():
                         label="End Frame"
                     )
 
-                gr.Markdown("### 3. Set Output Resolution")
+                gr.Markdown("### 3. Position Crop Area")
+                gr.Markdown(f"*Drag sliders to position the {REQUIRED_WIDTH}x{REQUIRED_HEIGHT} crop region*")
                 with gr.Row():
-                    target_width = gr.Number(value=REQUIRED_WIDTH, label="Width", precision=0)
-                    target_height = gr.Number(value=REQUIRED_HEIGHT, label="Height", precision=0)
-
+                    crop_x = gr.Slider(
+                        minimum=0, maximum=1000, value=0, step=1,
+                        label="Crop X Position (horizontal)"
+                    )
                 with gr.Row():
-                    gr.Button("Use EgoX Default (784x448)").click(
-                        lambda: (REQUIRED_WIDTH, REQUIRED_HEIGHT),
-                        outputs=[target_width, target_height]
+                    crop_y = gr.Slider(
+                        minimum=0, maximum=1000, value=0, step=1,
+                        label="Crop Y Position (vertical)"
                     )
 
                 gr.Markdown("### 4. Output Settings")
@@ -256,13 +350,17 @@ def create_ui():
 
             with gr.Column(scale=1):
                 # Preview section
-                gr.Markdown("### Frame Preview")
+                gr.Markdown("### Frame Preview with Crop Overlay")
+                gr.Markdown("*Green box shows the crop region. Dark areas will be removed.*")
 
                 preview_slider = gr.Slider(
                     minimum=0, maximum=100, value=0, step=1,
                     label="Preview Frame"
                 )
-                frame_preview = gr.Image(label="Frame Preview", type="numpy")
+                frame_preview = gr.Image(label="Frame with Crop Overlay", type="numpy")
+
+                gr.Markdown("### Cropped Result Preview")
+                cropped_preview = gr.Image(label="What will be saved", type="numpy")
 
                 gr.Markdown("### Processed Video")
                 output_video = gr.Video(label="Output Preview")
@@ -271,15 +369,21 @@ def create_ui():
         video_input.change(
             update_video_info,
             inputs=[video_input],
-            outputs=[video_info, start_frame, end_frame, output_video]
+            outputs=[video_info, start_frame, end_frame, crop_x, crop_y, output_video, video_width, video_height]
         )
 
-        # Update preview when slider changes
-        preview_slider.change(
-            preview_frame,
-            inputs=[video_input, preview_slider],
-            outputs=[frame_preview]
-        )
+        # Update preview when any parameter changes
+        def update_all_previews(video, frame_num, cx, cy):
+            overlay = preview_frame_with_crop(video, frame_num, cx, cy)
+            cropped = preview_cropped_frame(video, frame_num, cx, cy)
+            return overlay, cropped
+
+        for component in [preview_slider, crop_x, crop_y]:
+            component.change(
+                update_all_previews,
+                inputs=[video_input, preview_slider, crop_x, crop_y],
+                outputs=[frame_preview, cropped_preview]
+            )
 
         # Update preview slider range when video changes
         video_input.change(
@@ -288,24 +392,31 @@ def create_ui():
             outputs=[preview_slider]
         )
 
+        # Initial preview when video loads
+        video_input.change(
+            update_all_previews,
+            inputs=[video_input, preview_slider, crop_x, crop_y],
+            outputs=[frame_preview, cropped_preview]
+        )
+
         # Update output info when parameters change
-        for component in [start_frame, end_frame, target_width, target_height]:
+        for component in [start_frame, end_frame, crop_x, crop_y]:
             component.change(
                 calculate_output_info,
-                inputs=[video_input, start_frame, end_frame, target_width, target_height],
+                inputs=[video_input, start_frame, end_frame, crop_x, crop_y],
                 outputs=[output_info]
             )
 
         video_input.change(
             calculate_output_info,
-            inputs=[video_input, start_frame, end_frame, target_width, target_height],
+            inputs=[video_input, start_frame, end_frame, crop_x, crop_y],
             outputs=[output_info]
         )
 
         # Process button
         process_btn.click(
             process_video,
-            inputs=[video_input, start_frame, end_frame, target_width, target_height, output_name],
+            inputs=[video_input, start_frame, end_frame, crop_x, crop_y, output_name],
             outputs=[result_text, output_video]
         )
 
