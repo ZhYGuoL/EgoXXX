@@ -33,18 +33,7 @@ echo "  - Compute camera poses"
 echo "  - Generate 3D point clouds"
 echo ""
 
-python -c "
-import modal
-from vipe_modal import run_vipe_inference
-
-app = modal.App.lookup('vipe-inference')
-result = run_vipe_inference.remote(
-    video_path='$VIDEO_PATH',
-    start_frame=0,
-    end_frame=48
-)
-print(f'✓ ViPE result: {result}')
-" || python vipe_modal.py "$VIDEO_PATH" "$VIDEO_DIR/vipe_output"
+modal run vipe_modal.py --video-path "$VIDEO_PATH" --output-dir "$VIDEO_DIR/vipe_output"
 
 echo ""
 echo "✓ Step 1 complete!"
@@ -55,9 +44,13 @@ echo "=========================================="
 echo "STEP 2: Manual Ego Trajectory Annotation"
 echo "=========================================="
 echo ""
-echo "For best results, manually annotate ego trajectories:"
+echo "⚠️  IMPORTANT: Manual annotation is CRITICAL for output quality!"
 echo ""
-echo "1. Install EgoPriorRenderer locally (if not already done):"
+echo "The ViPE results are now available at: vipe_results/my_video/"
+echo ""
+echo "To manually annotate ego trajectories:"
+echo ""
+echo "1. Install EgoPriorRenderer locally (one-time setup):"
 echo "   cd EgoX-EgoPriorRenderer"
 echo "   conda env create -f envs/base.yml"
 echo "   conda activate egox-egoprior"
@@ -65,47 +58,40 @@ echo "   pip install -r envs/requirements.txt"
 echo "   pip install 'git+https://github.com/facebookresearch/pytorch3d.git@v0.7.9' --no-build-isolation"
 echo "   pip install git+https://github.com/microsoft/MoGe.git"
 echo "   pip install --no-build-isolation -e ."
+echo "   cd .."
 echo ""
-echo "2. Start visualization with manual annotation:"
+echo "2. Start the interactive visualization:"
 echo "   vipe visualize vipe_results/my_video --ego_manual"
 echo ""
-echo "3. For each frame:"
-echo "   - Position the ego camera frustum to align with head pose"
-echo "   - Copy ego_extrinsics from the UI panel (top-right)"
+echo "3. In the viewer, for each of 49 frames:"
+echo "   - Position the RED frustum to align with head position"
+echo "   - Note the ego_extrinsics values from the UI panel (top-right)"
 echo ""
-echo "4. Update meta.json with annotated ego_extrinsics"
+echo "4. Update meta.json with the annotated ego_extrinsics"
 echo ""
-echo "For now, using auto-generated trajectory (press Enter to continue)..."
+echo "Press Enter to CONTINUE WITH AUTO-GENERATED TRAJECTORY (lower quality)..."
 read -p ""
 
-# Step 3: Run rendering and depth conversion on Modal
+# Step 3: Ego Prior Rendering and Depth Conversion
 echo ""
 echo "=========================================="
 echo "STEP 3: Ego Prior Rendering (Modal H100)"
 echo "=========================================="
 echo ""
-echo "Running rendering and depth conversion..."
-python -c "
-import modal
-from vipe_modal import render_ego_prior, convert_depth_maps
 
-app = modal.App.lookup('vipe-inference')
+# Create basic meta.json if doesn't exist
+if [ ! -f "$VIDEO_DIR/meta.json" ]; then
+    echo "Creating default meta.json..."
+    python create_meta_json.py \
+        --video_dir "$VIDEO_DIR" \
+        --output "$VIDEO_DIR/meta.json"
+fi
 
-# Render ego prior
-print('[Rendering] Generating ego-view video...')
-render_ego_prior.remote(
-    vipe_result_name='my_video',
-    meta_json_path='$VIDEO_DIR/meta.json',
-    output_dir='$VIDEO_DIR',
-)
+echo "Rendering ego prior and converting depths on Modal H100..."
+echo "(This may take several minutes)"
+echo ""
 
-# Convert depths
-print('[Converting] Depth maps .exr -> .npy...')
-convert_depth_maps.remote(
-    vipe_result_name='my_video',
-    output_dir='$VIDEO_DIR/depth_maps',
-)
-" 2>/dev/null || echo "Modal apps not running. Skipping rendering."
+modal run vipe_modal.py --video-path "$VIDEO_PATH" --output-dir "$VIDEO_DIR"
 
 echo ""
 echo "✓ Step 3 complete!"

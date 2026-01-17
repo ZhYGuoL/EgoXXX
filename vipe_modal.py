@@ -262,6 +262,16 @@ def main(
     output_dir: str = "./vipe_output",
 ):
     """Main workflow: ViPE inference -> ego prior rendering -> depth conversion."""
+    import argparse
+
+    # Parse CLI arguments if provided
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--video-path", default=video_path)
+    parser.add_argument("--output-dir", default=output_dir)
+    args, unknown = parser.parse_known_args()
+
+    video_path = args.video_path
+    output_dir = args.output_dir
 
     print("=" * 50)
     print("EgoX ViPE + EgoPrior Rendering on Modal (H100)")
